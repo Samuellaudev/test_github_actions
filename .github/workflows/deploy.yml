@@ -4,6 +4,16 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Perform a dry-run (preview only)?"
+        required: false
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
 
 jobs:
   deploy-folders:
@@ -25,22 +35,31 @@ jobs:
         chmod 600 ~/.ssh/id_rsa
         ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
 
-    - name: 🛠️ Ensure remote ${{ matrix.folder }}/ directory exists
+    - name: 🛠️ Ensure remote folder exists
       run: |
         if [ -d "wp-content/${{ matrix.folder }}" ]; then
+          echo "✅ Creating remote directory..."
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
           ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
           "mkdir -p /home/${{ secrets.SSH_USER }}/staging.webdevspark.com/wp-content/${{ matrix.folder }}"
         else
-          echo "⚠️ wp-content/${{ matrix.folder }} does not exist locally. Skipping remote mkdir."
+          echo "⚠️ Local folder wp-content/${{ matrix.folder }} does not exist. Skipping remote mkdir."
         fi
 
     - name: 🚀 Deploy ${{ matrix.folder }}/ via rsync
       run: |
         if [ -d "wp-content/${{ matrix.folder }}" ]; then
-          rsync -az --delete \
+          DRY_FLAG=""
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            DRY_FLAG="--dry-run --itemize-changes"
+            echo "🧪 DRY-RUN enabled — showing what would be deployed:"
+          else
+            echo "🚀 LIVE DEPLOY — syncing files now."
+          fi
+
+          rsync -az --delete $DRY_FLAG \
             wp-content/${{ matrix.folder }}/ \
             ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/home/${{ secrets.SSH_USER }}/staging.webdevspark.com/wp-content/${{ matrix.folder }}/
         else
-          echo "⚠️ wp-content/${{ matrix.folder }} does not exist locally. Skipping rsync."
+          echo "⚠️ wp-content/${{ matrix.folder }} not found locally. Skipping rsync."
         fi
