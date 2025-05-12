@@ -1,23 +1,33 @@
-name: Publish Website
+name: Deploy Theme
 
 on:
   push:
     branches:
       - main
 
-
 jobs:
-  web-deploy:
-    name: 🚀 Deploy Website Every Commit
+  deploy-theme:
+    name: 🎨 Deploy Theme Folder
     runs-on: ubuntu-latest
+
     steps:
-    - name: 🚚 Get Latest Code
+    - name: 🧾 Checkout code
       uses: actions/checkout@v3
-    
-    - name: 📂 Sync Files
-      uses: SamKirkland/web-deploy@v1
-      with:
-        target-server: ${{ secrets.SSH_HOST }}
-        remote-user: ${{ secrets.SSH_USER }}
-        private-ssh-key: ${{ secrets.SSH_KEY }}
-        destination-path: ${{ secrets.SSH_DEPLOY_PATH }}
+
+    - name: 🔐 Setup SSH Access
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.SSH_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+
+    - name: 🛠️ Ensure remote themes/ directory exists
+      run: |
+        ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
+        "mkdir -p /home/${{ secrets.SSH_USER }}/staging.webdevspark.com/wp-content/themes"
+
+    - name: 🚀 Deploy themes/
+      run: |
+        rsync -az --delete \
+          wp-content/themes/ \
+          ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/home/${{ secrets.SSH_USER }}/staging.webdevspark.com/wp-content/themes/
