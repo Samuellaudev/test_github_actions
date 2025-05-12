@@ -38,12 +38,11 @@ jobs:
     - name: 🛠️ Ensure remote folder exists
       run: |
         if [ -d "wp-content/${{ matrix.folder }}" ]; then
-          echo "✅ Creating remote directory..."
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
           ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
           "mkdir -p /home/${{ secrets.SSH_USER }}/staging.webdevspark.com/wp-content/${{ matrix.folder }}"
         else
-          echo "⚠️ Local folder wp-content/${{ matrix.folder }} does not exist. Skipping remote mkdir."
+          echo "⚠️ wp-content/${{ matrix.folder }} does not exist locally. Skipping remote mkdir."
         fi
 
     - name: 🚀 Deploy ${{ matrix.folder }}/ via rsync
@@ -52,12 +51,18 @@ jobs:
           DRY_FLAG=""
           if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
             DRY_FLAG="--dry-run --itemize-changes"
-            echo "🧪 DRY-RUN enabled — showing what would be deployed:"
+            echo "🧪 DRY-RUN enabled — showing what would be deployed."
           else
             echo "🚀 LIVE DEPLOY — syncing files now."
           fi
 
-          rsync -az --delete $DRY_FLAG \
+          # Add --delete for folders you control
+          DELETE_FLAG=""
+          if [[ "${{ matrix.folder }}" != "plugins" ]]; then
+            DELETE_FLAG="--delete"
+          fi
+
+          rsync -az $DRY_FLAG $DELETE_FLAG \
             wp-content/${{ matrix.folder }}/ \
             ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/home/${{ secrets.SSH_USER }}/staging.webdevspark.com/wp-content/${{ matrix.folder }}/
         else
