@@ -1,4 +1,4 @@
-name: Deploy Theme
+name: Deploy wp-content Folders
 
 on:
   push:
@@ -6,9 +6,13 @@ on:
       - main
 
 jobs:
-  deploy-theme:
-    name: 🎨 Deploy Theme Folder
+  deploy-folders:
+    name: 🚀 Deploy ${{ matrix.folder }}/
     runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        folder: [themes, plugins, mu-plugins]
 
     steps:
     - name: 🧾 Checkout code
@@ -21,13 +25,22 @@ jobs:
         chmod 600 ~/.ssh/id_rsa
         ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
 
-    - name: 🛠️ Ensure remote themes/ directory exists
+    - name: 🛠️ Ensure remote ${{ matrix.folder }}/ directory exists
       run: |
-        ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
-        "mkdir -p /home/${{ secrets.SSH_USER }}/staging.webdevspark.com/wp-content/themes"
+        if [ -d "wp-content/${{ matrix.folder }}" ]; then
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
+          ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
+          "mkdir -p /home/${{ secrets.SSH_USER }}/staging.webdevspark.com/wp-content/${{ matrix.folder }}"
+        else
+          echo "⚠️ wp-content/${{ matrix.folder }} does not exist locally. Skipping remote mkdir."
+        fi
 
-    - name: 🚀 Deploy themes/
+    - name: 🚀 Deploy ${{ matrix.folder }}/ via rsync
       run: |
-        rsync -az --delete \
-          wp-content/themes/ \
-          ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/home/${{ secrets.SSH_USER }}/staging.webdevspark.com/wp-content/themes/
+        if [ -d "wp-content/${{ matrix.folder }}" ]; then
+          rsync -az --delete \
+            wp-content/${{ matrix.folder }}/ \
+            ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/home/${{ secrets.SSH_USER }}/staging.webdevspark.com/wp-content/${{ matrix.folder }}/
+        else
+          echo "⚠️ wp-content/${{ matrix.folder }} does not exist locally. Skipping rsync."
+        fi
